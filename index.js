@@ -1,3 +1,4 @@
+require("dotenv").config()
 const express = require('express');
 const passport = require('passport');
 const GitHubStrategy = require('passport-github').Strategy;
@@ -10,17 +11,17 @@ passport.use(new GitHubStrategy({
   clientSecret: process.env.CLIENT_SECRET,
   callbackURL: process.env.URL + '/auth/github/callback' // Cambia esta URL según tu configuración
 },
-function(accessToken, refreshToken, profile, done) {
-  // Aquí puedes manejar la lógica de autenticación y almacenar los datos del usuario en tu base de datos si es necesario.
-  return done(null, profile);
-}));
+  function (accessToken, refreshToken, profile, done) {
+    // Aquí puedes manejar la lógica de autenticación y almacenar los datos del usuario en tu base de datos si es necesario.
+    return done(null, profile);
+  }));
 
 // Configura Passport para almacenar el usuario en la sesión
-passport.serializeUser(function(user, done) {
+passport.serializeUser(function (user, done) {
   done(null, user);
 });
 
-passport.deserializeUser(function(obj, done) {
+passport.deserializeUser(function (obj, done) {
   done(null, obj);
 });
 
@@ -30,7 +31,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.get('/', (req, res) => {
-    res.json('Welcome, Login with GitHub')
+  res.json('Welcome, Login with GitHub')
 })
 
 // Ruta de inicio de sesión con GitHub
@@ -39,18 +40,20 @@ app.get('/auth/github', passport.authenticate('github'));
 // Ruta de redirección después de la autenticación con GitHub
 app.get('/auth/github/callback',
   passport.authenticate('github', { failureRedirect: '/' }),
-  function(req, res) {
+  function (req, res) {
     res.redirect('/profile'); // Puedes redirigir al perfil del usuario o a donde desees
   });
 
 // Ruta para cerrar sesión
-app.get('/logout', function(req, res) {
-  req.logout();
-  res.redirect('/');
+app.get('/logout', (req, res, next) => {
+  req.logout(function (err) {
+    if (err) { return next(err); }
+    res.redirect('/');
+  });
 });
 
 // Ruta protegida que requiere autenticación
-app.get('/profile', isAuthenticated, function(req, res) {
+app.get('/profile', isAuthenticated, function (req, res) {
   res.send('Bienvenido a tu perfil');
 });
 
