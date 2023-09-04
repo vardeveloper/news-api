@@ -29,6 +29,10 @@ app.use(require('express-session')({ secret: 'tu_secreto', resave: true, saveUni
 app.use(passport.initialize());
 app.use(passport.session());
 
+app.get('/', (req, res) => {
+    res.json('Welcome, Login with GitHub')
+})
+
 // Ruta de inicio de sesión con GitHub
 app.get('/auth/github', passport.authenticate('github'));
 
