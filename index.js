@@ -1,96 +1,62 @@
-const PORT = process.env.PORT || 8000
-const express = require('express')
-const axios = require('axios')
-const cheerio = require('cheerio')
-const app = express()
+const express = require('express');
+const passport = require('passport');
+const GitHubStrategy = require('passport-github').Strategy;
 
-const newspapers = [
-    {
-        name: 'elcomercio',
-        address: 'https://elcomercio.pe/tecnologia',
-        base: 'https://elcomercio.pe'
-    },
-    {
-        name: 'rpp',
-        address: 'https://rpp.pe/tecno',
-        base: ''
-    }/*,
-    {
-        name: 'larepublica',
-        address: 'https://larepublica.pe/tecnologia',
-        base: 'https://larepublica.pe'
-    }*/
-]
+const app = express();
 
-const articles = []
+// Configura la estrategia de autenticación de GitHub
+passport.use(new GitHubStrategy({
+  clientID: process.env.CLIENT_ID,
+  clientSecret: process.env.CLIENT_SECRET,
+  callbackURL: process.env.URL + '/auth/github/callback' // Cambia esta URL según tu configuración
+},
+function(accessToken, refreshToken, profile, done) {
+  // Aquí puedes manejar la lógica de autenticación y almacenar los datos del usuario en tu base de datos si es necesario.
+  return done(null, profile);
+}));
 
-newspapers.forEach(newspaper => {
-    axios.get(newspaper.address)
-        .then(response => {
-            const html = response.data
-            const $ = cheerio.load(html)
+// Configura Passport para almacenar el usuario en la sesión
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
 
-            $('a:contains("ChatGPT")', html).each(function () {
-                const title = $(this).text()
-                const url = $(this).attr('href')
+passport.deserializeUser(function(obj, done) {
+  done(null, obj);
+});
 
-                articles.push({
-                    title,
-                    url: newspaper.base + url,
-                    source: newspaper.name
-                })
-            })
+// Configura Express
+app.use(require('express-session')({ secret: 'tu_secreto', resave: true, saveUninitialized: true }));
+app.use(passport.initialize());
+app.use(passport.session());
 
-        })
-        .catch(err => console.log(err))
-})
+// Ruta de inicio de sesión con GitHub
+app.get('/auth/github', passport.authenticate('github'));
 
-app.get('/', (req, res) => {
-    res.json('Welcome to my Technology News API')
-})
+// Ruta de redirección después de la autenticación con GitHub
+app.get('/auth/github/callback',
+  passport.authenticate('github', { failureRedirect: '/' }),
+  function(req, res) {
+    res.redirect('/profile'); // Puedes redirigir al perfil del usuario o a donde desees
+  });
 
-app.get('/news', (req, res) => {
-    res.json(articles)
-})
+// Ruta para cerrar sesión
+app.get('/logout', function(req, res) {
+  req.logout();
+  res.redirect('/');
+});
 
-app.get('/news/:newspaperId', (req, res) => {
-    const newspaperId = req.params.newspaperId
+// Ruta protegida que requiere autenticación
+app.get('/profile', isAuthenticated, function(req, res) {
+  res.send('Bienvenido a tu perfil');
+});
 
-    const newspaper = newspapers.filter(newspaper => newspaper.name == newspaperId)
-    const newspaperAddress = newspaper[0].address
-    const newspaperBase = newspaper[0].base
+function isAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/');
+}
 
-    axios.get(newspaperAddress)
-        .then(response => {
-            const html = response.data
-            const $ = cheerio.load(html)
-            const specificArticles = []
-
-            // const c = $('a').contents()
-            // console.log('a.contents() ', c.length)
-
-            // const a = $('a').filter(".story-item__title", html)
-            // console.log('a.filter("ChatGPT") ', a.length)
-
-            // const b = $('a:contains("ChatGPT")')
-            // console.log('a:contains("ChatGPT")', b.length)
-
-            $('a:contains("ChatGPT")', html).each(function () {
-                const title = $(this).text()
-                const url = $(this).attr('href')
-
-                // console.log("titulo: ", title)
-                // console.log("url: ", url)
-
-                specificArticles.push({
-                    title,
-                    url: newspaperBase + url,
-                    source: newspaperId
-                })
-            })
-            res.json(specificArticles)
-        })
-        .catch(err => console.log(err))
-})
-
-app.listen(PORT, () => console.log(`server running on PORT ${PORT}`))
+app.listen(process.env.PORT, () => {
+  console.log('Aplicación de inicio de sesión con GitHub en ejecución en http://localhost:3000');
+});
